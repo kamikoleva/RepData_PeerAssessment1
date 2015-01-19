@@ -1,0 +1,347 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+author: "Kami Koleva"
+date: "18 January 2015"
+output: html_document
+---
+
+#### Introduction
+Data from a personal activity monitoring device was colected by anonymous individual for a period  of two months. The data consists of observations of the number of steps that the indivisual did at 5 minute intervals through out the day. 
+
+The variables included are:
+
+__steps:__ Number of steps taking in a 5-minute interval (missing values are coded as NA)
+
+__date:__ The date on which the measurement was taken in YYYY-MM-DD format
+
+__interval:__ Identifier for the 5-minute interval in which measurement was taken
+
+
+##### Basic settings of report
+
+```{r}
+echo = TRUE  
+options(scipen = 1)  
+```
+
+#### Loading and preprocessing the data
+Download the data file, if the file is not present in the current folder.
+```{r}
+if(!file.exists("activity.csv")) {
+        
+        print("Downloading DataRow")
+        SourceURL <- "https://d396qusza40orc.cloudfront.net/repDataRow%2FDataRow%2Factivity.zip"
+        download.file(SourceURL, destfile = "DataRowset.zip", mode = "wb")
+        
+        print("Unzipping DataRow!")
+        unzip("DataRowset.zip")
+        print("Unzipping DataRow Done!")
+}
+```
+Load the data and remove missing records.
+```{r}
+Data <- read.csv("activity.csv", colClasses = c("integer", "Date", "factor"))
+
+Data$month <- as.numeric(format(Data$date, "%m"))
+summary(Data)
+
+DataNA_Removed <- na.omit(Data)
+rownames(DataNA_Removed) <- 1:nrow(DataNA_Removed)
+
+head(DataNA_Removed)
+```
+The dat set has the folowing dimnetions:
+```{r}
+dim(DataNA_Removed)
+```
+
+The number of the missing and complete records is:
+```{r} 
+NumOfMissingRecords  <- sum(is.na(Data))
+NumOfCompleteRecords <- sum(complete.cases(Data))
+
+```
+
+The graph bellow will ilustrate better the numbers:
+```{r, fig.width = 5, fig.height = 4}
+barplot(table(complete.cases(Data)), 
+        main = "Missing vs. Complete Records", 
+        xaxt = 'n', col = "deepskyblue3")
+
+axis(side = 1, at = c(.7,1.9),labels = c("Missing","Complete"),tick = FALSE)
+     
+
+text(0.7,0, labels = NumOfMissingRecords,  pos = 3)                              
+text(1.9,0, labels = NumOfCompleteRecords, pos = 3)  
+```
+
+
+#### What is mean total number of steps taken per day?
+The graph bellow will show the total number of steps for each day of the observed two months period.
+```{r, fig.width = 12, fig.height = 4}
+library(ggplot2)
+
+ggplot(DataNA_Removed, aes(date, steps)) +
+        
+        geom_bar(stat = "identity", 
+                 colour = "deepskyblue2", 
+                 fill = "deepskyblue2", 
+                 width = 0.6) + 
+        
+        facet_grid(. ~ month, scales = "free") + 
+        
+        labs(title = "Total Daily Number of Steps for the Whole Period, Missing Records Removed", 
+             x = "Date", 
+             y = "Total number of steps",
+             size = rel(0.7))
+
+
+```
+
+To compute the mean and median of the total daily number of steps, the dat will be Split by day (date):
+```{r}
+TotalDailySteps <- aggregate(steps ~ date, Data, na.rm = TRUE, sum)
+```
+Now the Mean Total Daily Steps can be computed:
+```{r}
+MeanOfTotalDailySteps <- mean(TotalDailySteps$steps)
+sprintf("MeannOfTotalDailySteps = %.2f", MeanOfTotalDailySteps)
+```
+Here is the computation needed for the Median of the Total Daily Steps:
+```{r}
+MedianOfTotalDailySteps <- median(TotalDailySteps$steps)
+sprintf("MedianOfTotalDailySteps = %.2f", MedianOfTotalDailySteps)
+```
+
+The code beloow will create a histogram of the total daily steps number:
+```{r, fig.width = 7, fig.height = 4}
+TitleHistogram = paste("Histogram of Total Daily Steps", 
+                       sprintf("Mean = %d", round(MeanOfTotalDailySteps)),
+                       sprintf("Median = %d", round(MedianOfTotalDailySteps)), 
+                       sep = ", ")
+hist(TotalDailySteps$steps,
+     col = "deepskyblue1",
+     border="white",
+     breaks = 5, 
+     main = TitleHistogram,
+     cex.main = 0.8,
+     xlab = "Steps Number",
+     ylim = c(0, 30),
+     xlim = c(0, 25000),
+     cex = 0.5)
+
+abline(v = MeanOfTotalDailySteps,   col = "orangered2",  lty = 3, lwd = 3)
+abline(v = MedianOfTotalDailySteps, col = "deepskyblue4", lty = 4, lwd = 3)
+
+legend(x = "topright", 
+       legend = c("mean","median"), 
+       col = c("orangered2","deepskyblue4"), 
+       bty ="n", lwd = 3, lty = 3)
+
+rug(TotalDailySteps$steps, col = "deepskyblue3") 
+
+```
+
+#### What is the average daily activity pattern?
+The code bellow will first preproces the data by aggregating the data by interval and averaging  acros all days.
+```{r}
+AverageSteps <- aggregate(DataNA_Removed$steps, 
+                list(interval = as.numeric(as.character(DataNA_Removed$interval))), 
+                FUN = "mean")
+names(AverageSteps)[2] <- "AverageSteps"
+```
+
+See below the time series plot of the 5-minute interval and the average number of steps taken, averaged across all days.
+```{r, fig.width = 12, fig.height = 4}
+ggplot(AverageSteps, aes(interval, AverageSteps)) +
+        
+        geom_line(color = "deepskyblue2", size = 1.2) + 
+        
+        labs(title = "Time Series Plot of the 5-minute Interval", 
+             x = "5-minute intervals", 
+             y = "Average Number of Steps") +
+        
+        geom_vline(xintercept = IntervalWithMaxAverageStepsNumber, 
+                   color ="orange", linetype = "dashed", size = 0.9) +
+
+        scale_x_continuous(breaks = seq(0, 2400, by = 100), labels = paste(0:24,":00", sep=""))
+```
+Interval containing the maximum number of steps:
+```{r}
+AverageSteps[AverageSteps$AverageSteps == max(AverageSteps$AverageSteps), ]
+
+MaxIntervalAverageStepsNumber = AverageSteps[AverageSteps$AverageSteps == max(AverageSteps$AverageSteps), 2]
+MaxIntervalAverageStepsNumber
+
+IntervalWithMaxAverageStepsNumber = AverageSteps[AverageSteps$AverageSteps == max(AverageSteps$AverageSteps), 1]
+IntervalWithMaxAverageStepsNumber
+```
+
+#### Imputing missing values
+
+To impute the missing values, the mean across all days for the 5-min interval which it occurs willbe used.
+New data set will be created where all missing values will be subsituted with the estimates, as described above.
+
+```{r}
+DataNA_Imputed <- Data
+for (i in 1:nrow(DataNA_Imputed)) {
+        if (is.na(DataNA_Imputed$steps[i])) {
+                DataNA_Imputed$steps[i] <- AverageSteps[which(DataNA_Imputed$interval[i] == AverageSteps$interval), ]$AverageSteps
+        }
+}
+
+head(DataNA_Imputed)
+sum(is.na(DataNA_Imputed))
+```
+Barplot Daily total steps for the whole period
+```{r, fig.width = 12, fig.height = 4}
+ggplot(DataNA_Imputed, aes(date, steps)) +
+        
+        geom_bar(stat = "identity", 
+                 colour = "orange", 
+                 fill = "orange", 
+                 width = 0.7) + 
+        
+        facet_grid(. ~ month, scales = "free") + 
+        
+        labs(title = "Total Daily Number of Steps for the Whole Period, Missing Records Imputed", 
+             x = "Date", 
+             y = "Total number of steps")
+```
+Split data by day (date) and calculate total steps dayly
+```{r}
+TotalDailyStepsNA_Imputed <- aggregate(steps ~ date, DataNA_Imputed, na.rm = TRUE, sum)
+```
+Mean Total Daily Steps
+```{r}
+MeanOfTotalDailyStepsNA_Imputed <- mean(TotalDailyStepsNA_Imputed$steps)
+sprintf("MeannOfTotalDailyStepsNA_Imputed = %.2f", MeanOfTotalDailyStepsNA_Imputed)
+```
+Median Total Daily Steps
+```{r}
+MedianOfTotalDailyStepsNA_Imputed <- median(TotalDailyStepsNA_Imputed$steps)
+sprintf("MedianOfTotalDailyStepsNA_Imputed = %.2f", MedianOfTotalDailyStepsNA_Imputed)
+```
+
+```{r}
+summary(TotalDailyStepsNA_Imputed)
+```
+
+Histogram Total Steps per day
+```{r, fig.width = 7, fig.height = 4}
+TitleHistogram = paste("Histogram of Total Daily Steps, Misssing Values Imputed", 
+                       sprintf("Mean = %d", round(MeanOfTotalDailyStepsNA_Imputed)),
+                       sprintf("Median = %d", round(MedianOfTotalDailyStepsNA_Imputed)), 
+                       sep = ", ")
+hist(TotalDailyStepsNA_Imputed$steps,
+     col = "orange",
+     border="white",
+     breaks = 5, 
+     main = TitleHistogram,
+     cex.main = 0.8,
+     xlab = "Steps Number",
+     xlim = c(0, 25000),
+     cex = 0.6)
+
+abline(v = MeanOfTotalDailyStepsNA_Imputed,   col = "orangered4",  lty = 3, lwd = 3)
+abline(v = MedianOfTotalDailyStepsNA_Imputed, col = "deepskyblue4", lty = 4, lwd = 3)
+
+legend(x = "topright", 
+       legend = c("mean","median"), 
+       col = c("orangered2","deepskyblue4"), 
+       bty ="n", lwd = 3, lty = 3)
+
+rug(TotalDailyStepsNA_Imputed$steps, col = "orange") 
+```
+
+##### Comparisson Between Data Set with Ignored and Imputed Values Data Set by 
+The graph below will show the impact of imputing the missing records
+
+```{r, fig.width = 12, fig.height = 4}
+
+par(mfrow =  c(1,2))
+TitleHistogram = "Histogram of Total Daily Steps, Missing Records Ignored"
+hist(TotalDailySteps$steps,
+     col = "deepskyblue1",
+     border="white",
+     breaks = 5, 
+     main = TitleHistogram,
+     cex.main = 0.9,
+     xlab = "Steps Number",
+     ylim = c(0, 35),
+     xlim = c(0, 25000),
+     cex = 0.85)
+rug(TotalDailySteps$steps, col = "deepskyblue3") 
+
+
+TitleHistogram = "Histogram of Total Daily Steps, Missing Records Imputed" 
+                       
+hist(TotalDailyStepsNA_Imputed$steps,
+     col = "orange",
+     border="white",
+     breaks = 5, 
+     main = TitleHistogram,
+     cex.main = 0.9,
+     xlab = "Steps Number",
+     ylim = c(0, 35),
+     xlim = c(0, 25000),
+     cex = 0.85)
+rug(TotalDailyStepsNA_Imputed$steps, col = "orange") 
+```
+The diference vivid from the graph is that number of observations is higher, when using the average value for imputation.
+
+The diference between the mean of data set with ignored missing records and the mean of data set with imputed missing is:
+
+```{r}
+abs(MeanOfTotalDailySteps - MeanOfTotalDailyStepsNA_Imputed) 
+```
+
+The diference between the median of data set with ignored missing records and the median of data set with imputed missing is:
+
+```{r}
+abs(MedianOfTotalDailySteps - MedianOfTotalDailyStepsNA_Imputed) 
+```
+
+#### Are there differences in activity patterns between weekdays and weekends?
+
+A new factor variable "weekday" is created in the data set with two levels: "weekdays" and "weekend".
+
+```{r}
+DataNA_Imputed$weekdays <- factor(format(DataNA_Imputed$date, "%A"))
+levels(DataNA_Imputed$weekdays)
+
+Weekday = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+Weekend = c("Saturday", "Sunday")
+
+levels(DataNA_Imputed$weekdays) <- list(weekday = Weekday, weekend = Weekend)
+levels(DataNA_Imputed$weekdays)
+table(DataNA_Imputed$weekdays)
+```
+
+The data is aggregated by 5-minutes interval and weekday/-end.
+```{r}
+AverageStepsNA_Imputed <- aggregate(DataNA_Imputed$steps, 
+                      list(interval = as.numeric(as.character(DataNA_Imputed$interval)), 
+                           weekdays = DataNA_Imputed$weekdays),
+                      FUN = "mean")
+names(AverageStepsNA_Imputed)[3] <- "AverageSteps"
+```
+
+The code below will produce the plot for average number of steps dueing the week and weekend.
+```{r}
+library(lattice)
+xyplot(AverageStepsNA_Imputed$AverageSteps ~ AverageStepsNA_Imputed$interval | 
+               AverageStepsNA_Imputed$weekdays, 
+       layout = c(1, 2), type = "l", 
+       xlab = "Interval", ylab = "Number of steps")
+```
+The diference between weekdays and weekend activity pattern is more vivid when both graphs are supperposed in the same graph:
+```{r}
+xyplot(AverageSteps ~ interval, 
+       data = AverageStepsNA_Imputed, 
+       groups = AverageStepsNA_Imputed$weekdays, 
+       type = "l", grid=T, 
+       ylab = "Average number of steps", 
+       xlab = "5-min. intervals from midnight", 
+       main = "Weekdays (in blue) vs. Weekends (in Purple)")
+```
